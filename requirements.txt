@@ -1,0 +1,6 @@
+seaborn
+pubchempy
+pandas
+rdkit
+matplotlib
+scikit-learn
