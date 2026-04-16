@@ -1,0 +1,54 @@
+小分子特徵(molecular_features.csv):
+    SMILES (分子結構式)：
+        用途：可以轉換為 Morgan Fingerprints（分子指紋）。這是訓練深度學習模型（如圖神經網路 GNN）的關鍵，用來學習分子的結構相似性與毒性之間的關聯。
+
+    XLogP (脂溶性)：
+        用途：計算 CIB (載體誘導生物利用度)。脂溶性高的物質容易蓄積在細胞膜，這在預測協同效應時非常重要，因為它可能帶動其他低脂溶性物質的穿透。
+
+    MW (分子量) & TPSA (極性表面積)：
+        用途：用於計算 BDS (屏障破壞得分)。分子量與極性的分佈決定了物質如何穿透腸道屏障。
+
+法規與類別特徵（用於處理混合物盲區，針對那些標記為 is_complex_mixture = True 的物質，這些資訊至關重要：
+    Category (功能類別)：
+        用途：這是處理混合物的「類推法」核心。對於沒有結構的增稠劑（Thickener）或乳化劑（Emulsifier），模型可以根據類別標籤賦予一個「物理干擾權重」。
+
+    E-number (法規編號)：
+        用途：作為唯一標識符，並能與歐盟、FDA 的毒理資料庫進行外部串接。
+
+關係特徵（用於計算協同風險指標），透過「去重」與「CAS 對齊」獲得的高級數據：
+    Unique Key (唯一物質索引)：
+        用途：確保在模擬產品成分時，重複的別名（如 Vitamin C 與 E300）不會被重複計分，提高計算的物理準確性。
+
+    All Synonyms (別名集群)：
+        用途：自然語言處理 (NLP) 的輔助特徵。以後輸入任何語言的成分表，系統都能精準定位到其化學本質。
+
+"""
+
+?? is_category_label 欄位，專門標註這類「雖然是混合物，但代表性成分明確」的項目？這對後續 AI 訓練區分「未知風險」與「類別風險」非常有幫助。??
+A: 1. 專業法規來源：JECFA 規格手冊 (The "Gold Standard") JECFA (聯合食品添加物專家委員會) 是全球食品添加物規格的制定者。當 PubChem 找不到結構時，這裡會告訴你它「由什麼組成」。
+
+    獲取資訊：搜尋 JECFA Combined Compendium of Food Additive Specifications。
+    範例 (E1001 膽鹼鹽)：JECFA 會明確標註其純度要求，並指出常見的組成比例。例如，它會規定「氯化膽鹼」的含量不得低於 95%，這讓你有了**「代表性純物質」**的建模依據。
+    關鍵指標：查找 "Assay" (含量分析) 欄位，這會給出主成分的百分比。
+
+2. 工業與安全來源：MSDS / SDS (安全資料表)當某個添加物是商業配方時，製造商必須提供 SDS。這是 Dry Lab 獲取「隱藏配方」最快的方法。
+    
+    獲取策略：搜尋 [添加物名稱] + SDS + Manufacturer (如 BASF, Sigma-Aldrich)。
+    成分比例 (Section 3)：SDS 的第三部分 "Composition/Information on Ingredients" 會強制列出所有具有毒理意義的成分及其濃度範圍 (Concentration Range)。
+    範例：某個複雜乳化劑可能會列出：
+
+        主成分 A：60-70%
+        副產品 B：10-20%
+        殘留溶劑 C：< 0.1%
+
+    這讓你能在計算 HI (Hazard Index) 時進行加權求和。
+
+3. 專利文獻挖掘 (Patent Mining)許多複雜混合物（如變性澱粉或複合色素）的精確配方比例藏在專利中。
+
+    工具：使用 Google Patents。
+    搜尋技巧：搜尋 [E-number] + "composition" + "weight percent"。
+    用途：專利通常會給出「實施例 (Examples)」，詳細列出不同比例下的化學特性。這對於你訓練深度學習模型模擬「最差情況 (Worst-case scenario)」非常有幫助。
+
+"""
+
+腳本:獲取 OFF 大數據：你可以嘗試寫一個簡單的爬蟲，針對 OFF 的分類頁面（例如：https://world.openfoodfacts.org/category/sauces.json）抓取前 100 頁的產品 JSON。

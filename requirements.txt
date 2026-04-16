@@ -4,3 +4,5 @@ pandas
 rdkit
 matplotlib
 scikit-learn
+pdfplumber 
+googlesearch-python
